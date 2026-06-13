@@ -42,10 +42,23 @@ const HAND_CONNECTIONS = [
 
 // ---- Constants ----
 const TWO_PI = Math.PI * 2;
-const DOM_THROTTLE_MS = 100; // Update DOM panels at 10 Hz, not every frame
+const DOM_THROTTLE_MS = 50; // Update DOM panels at 20 Hz for more responsive game
 const EMPTY_GESTURE_HTML = '<p class="panel__empty">Show your hand…</p>';
 const EMPTY_LANDMARK_HTML = '<p class="panel__empty">No data yet</p>';
 const NO_GESTURE_HTML = '<p class="panel__empty">No gesture detected</p>';
+
+// ---- Rock-Paper-Scissors Constants ----
+const RPS_CHOICES = ['Rock', 'Paper', 'Scissors'];
+const GESTURE_TO_RPS = {
+  'Closed_Fist': 'Rock',
+  'Open_Palm': 'Paper',
+  'Victory': 'Scissors',
+};
+const RPS_EMOJI = {
+  'Rock': '✊',
+  'Paper': '📄',
+  'Scissors': '✌️',
+};
 
 // ---- DOM refs ----
 const $ = (s) => document.getElementById(s);
@@ -67,6 +80,12 @@ const confidenceVal = $("confidence-val");
 const toggleSkeleton = $("toggle-skeleton");
 const toggleGlow = $("toggle-glow");
 const toggleLabels = $("toggle-labels");
+const gamePanel = $("game-panel");
+const gameStatus = $("game-status");
+const gameScore = $("game-score");
+const btnResetGame = $("btn-reset-game");
+const btnNewRound = $("btn-new-round");
+const btnStopGame = $("btn-stop-game");
 
 // ---- High-performance canvas context ----
 const ctx = canvas.getContext("2d", {
@@ -91,10 +110,22 @@ let videoFrameCallbackId = null;
 // ---- Settings ----
 const settings = {
   maxHands: 2,
-  minConfidence: 0.5,
+  minConfidence: 0.3,  // Lowered for more frequent detection
   showSkeleton: true,
   showGlow: true,
   showLabels: false,
+};
+
+// ---- Game State ----
+const gameState = {
+  playerScore: 0,
+  computerScore: 0,
+  draws: 0,
+  playerChoice: null,
+  computerChoice: null,
+  roundResult: null, // 'win', 'lose', 'draw'
+  lastGestureTime: 0,
+  gestureHoldDuration: 800, // ms to hold gesture for RPS
 };
 
 // ---- Gesture emoji map (pre-built) ----
@@ -208,6 +239,9 @@ function stopCamera() {
 
   gestureList.innerHTML = EMPTY_GESTURE_HTML;
   landmarkList.innerHTML = EMPTY_LANDMARK_HTML;
+  
+  // Reset game state when stopping camera
+  resetGame();
 }
 
 // ============================================================
@@ -445,20 +479,140 @@ function drawHands(results, numHands) {
 }
 
 // ============================================================
-//  Panels (throttled — called at ~10 Hz)
+//  Rock-Paper-Scissors Game Logic
+// ============================================================
+function playRPSRound(playerChoice) {
+  if (!playerChoice) return;
+
+  gameState.playerChoice = playerChoice;
+  
+  // Computer makes random choice
+  const computerIdx = Math.floor(Math.random() * RPS_CHOICES.length);
+  gameState.computerChoice = RPS_CHOICES[computerIdx];
+
+  // Determine winner
+  if (playerChoice === gameState.computerChoice) {
+    gameState.roundResult = 'draw';
+    gameState.draws++;
+  } else if (
+    (playerChoice === 'Rock' && gameState.computerChoice === 'Scissors') ||
+    (playerChoice === 'Paper' && gameState.computerChoice === 'Rock') ||
+    (playerChoice === 'Scissors' && gameState.computerChoice === 'Paper')
+  ) {
+    gameState.roundResult = 'win';
+    gameState.playerScore++;
+  } else {
+    gameState.roundResult = 'lose';
+    gameState.computerScore++;
+  }
+
+  updateGamePanel();
+}
+
+function updateGamePanel() {
+  if (!gamePanel) return;
+
+  const player = gameState.playerChoice;
+  const computer = gameState.computerChoice;
+  const result = gameState.roundResult;
+
+  let statusHTML = '';
+  
+  if (player && computer && result) {
+    const resultClass = `game-status__${result}`;
+    const resultText = result === 'draw' ? 'Draw!' : result === 'win' ? 'You Win! 🎉' : 'You Lose 😢';
+    const resultColor = result === 'draw' ? '#facc15' : result === 'win' ? '#4ade80' : '#ef4444';
+    
+    statusHTML = `
+      <div class="game-status__round">
+        <div class="game-choice game-choice--player">
+          <div class="game-choice__emoji">${RPS_EMOJI[player]}</div>
+          <div class="game-choice__label">You</div>
+          <div class="game-choice__name">${player}</div>
+        </div>
+        <div class="game-versus">VS</div>
+        <div class="game-choice game-choice--computer">
+          <div class="game-choice__emoji">${RPS_EMOJI[computer]}</div>
+          <div class="game-choice__label">Computer</div>
+          <div class="game-choice__name">${computer}</div>
+        </div>
+      </div>
+      <div class="game-result" style="color: ${resultColor}; font-weight: 700; font-size: 1.1rem; margin-top: 12px;">
+        ${resultText}
+      </div>
+    `;
+  } else {
+    statusHTML = '<p class="panel__empty">Make a gesture: Rock (✊), Paper (🖐️), or Scissors (✌️)</p>';
+  }
+
+  gameStatus.innerHTML = statusHTML;
+
+  // Update score
+  const scoreHTML = `
+    <div class="game-score__row">
+      <span>You</span>
+      <span class="game-score__val">${gameState.playerScore}</span>
+    </div>
+    <div class="game-score__row">
+      <span>Computer</span>
+      <span class="game-score__val">${gameState.computerScore}</span>
+    </div>
+    <div class="game-score__row">
+      <span>Draws</span>
+      <span class="game-score__val">${gameState.draws}</span>
+    </div>
+  `;
+  gameScore.innerHTML = scoreHTML;
+}
+
+function resetGame() {
+  gameState.playerScore = 0;
+  gameState.computerScore = 0;
+  gameState.draws = 0;
+  gameState.playerChoice = null;
+  gameState.computerChoice = null;
+  gameState.roundResult = null;
+  updateGamePanel();
+}
+
+function startNewRound() {
+  // Full reset for a new match (clears scores and current round)
+  gameState.playerScore = 0;
+  gameState.computerScore = 0;
+  gameState.draws = 0;
+  gameState.playerChoice = null;
+  gameState.computerChoice = null;
+  gameState.roundResult = null;
+  gameState.lastGestureTime = 0;
+  updateGamePanel();
+}
+
+// ============================================================
+//  Panels (throttled — called at ~20 Hz)
 // ============================================================
 function updateGesturePanel(results) {
   if (!results.gestures || results.gestures.length === 0) {
     gestureList.innerHTML = NO_GESTURE_HTML;
+    gameState.playerChoice = null;
+    gameState.roundResult = null;
+    gameState.lastGestureTime = 0;
     return;
   }
 
   const parts = [];
+  let currentGesture = null;
+  
   for (let i = 0; i < results.gestures.length; i++) {
     const gArr = results.gestures[i];
     if (!gArr || gArr.length === 0) continue;
     const g = gArr[0];
     if (g.categoryName === "None") continue;
+    
+    // Track first detected gesture for RPS
+    if (!currentGesture && g.score > 0.6) {
+      currentGesture = g.categoryName;
+    }
+    
     const handedness = results.handednesses?.[i]?.[0]?.categoryName || "?";
     parts.push(
       `<div class="gesture-item"><div><div class="gesture-item__name">${getGestureEmoji(g.categoryName)} ${g.categoryName.replace(/_/g, " ")}</div><div class="gesture-item__hand">${handedness} hand</div></div><span class="gesture-item__score">${(g.score * 100) | 0}%</span></div>`
@@ -466,6 +620,26 @@ function updateGesturePanel(results) {
   }
 
   gestureList.innerHTML = parts.length > 0 ? parts.join("") : NO_GESTURE_HTML;
+
+  // Handle RPS game: trigger round on confident gesture hold
+  if (currentGesture && GESTURE_TO_RPS[currentGesture]) {
+    const now = performance.now();
+    const rpsChoice = GESTURE_TO_RPS[currentGesture];
+    
+    // If new gesture detected, reset timer
+    if (rpsChoice !== gameState.playerChoice) {
+      gameState.lastGestureTime = now;
+      gameState.playerChoice = rpsChoice;
+    } else if (now - gameState.lastGestureTime >= gameState.gestureHoldDuration) {
+      // Hold gesture for 800ms to trigger round
+      if (gameState.roundResult === null) {
+        playRPSRound(rpsChoice);
+      }
+    }
+  } else {
+    gameState.playerChoice = null;
+    gameState.lastGestureTime = 0;
+  }
 }
 
 function updateLandmarkPanel(landmarks) {
@@ -527,3 +701,7 @@ toggleGlow.addEventListener("change", () => {
 toggleLabels.addEventListener("change", () => {
   settings.showLabels = toggleLabels.checked;
 });
+
+btnResetGame.addEventListener("click", resetGame);
+btnNewRound.addEventListener("click", startNewRound);
+btnStopGame.addEventListener("click", stopCamera);
