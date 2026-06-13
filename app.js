@@ -86,6 +86,7 @@ let lastDomUpdate = 0;
 let cachedW = 0;
 let cachedH = 0;
 let prevHandCount = -1;
+let videoFrameCallbackId = null;
 
 // ---- Settings ----
 const settings = {
@@ -150,9 +151,9 @@ async function startCamera() {
     stream = await navigator.mediaDevices.getUserMedia({
       video: {
         facingMode: "user",
-        width: { ideal: 1280 },
-        height: { ideal: 720 },
-        frameRate: { ideal: 120 },  // Request high frame rate from camera
+        width: { ideal: 640 },
+        height: { ideal: 480 },
+        frameRate: { ideal: 60, max: 60 },  // Prefer a stable low-latency stream
       },
       audio: false,
     });
@@ -184,12 +185,17 @@ async function startCamera() {
   prevHandCount = -1;
 
   // Start processing
-  processFrame();
+  scheduleNextFrame();
 }
 
 function stopCamera() {
   if (animFrameId) cancelAnimationFrame(animFrameId);
   animFrameId = null;
+
+  if (videoFrameCallbackId !== null && typeof video.cancelVideoFrameCallback === "function") {
+    video.cancelVideoFrameCallback(videoFrameCallbackId);
+  }
+  videoFrameCallbackId = null;
 
   if (stream) {
     stream.getTracks().forEach((t) => t.stop());
@@ -249,8 +255,22 @@ function processFrame() {
     gestureList.innerHTML = EMPTY_GESTURE_HTML;
     landmarkList.innerHTML = EMPTY_LANDMARK_HTML;
   }
+}
 
-  animFrameId = requestAnimationFrame(processFrame);
+function scheduleNextFrame() {
+  if (typeof video.requestVideoFrameCallback === "function") {
+    videoFrameCallbackId = video.requestVideoFrameCallback((now) => {
+      videoFrameCallbackId = null;
+      processFrame(now);
+      scheduleNextFrame();
+    });
+    return;
+  }
+
+  animFrameId = requestAnimationFrame(() => {
+    processFrame(performance.now());
+    scheduleNextFrame();
+  });
 }
 
 // ============================================================
