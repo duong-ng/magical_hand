@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Magical Hands — Real-Time Hand & Gesture Recognition</title>
+  <meta name="description" content="Real-time hand tracking and gesture recognition powered by MediaPipe. Visualize 21 hand landmarks with stunning effects." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="index.css" />
+</head>
+<body>
+  <!-- Background glow effects -->
+  <div class="bg-glow bg-glow--1"></div>
+  <div class="bg-glow bg-glow--2"></div>
+  <div class="bg-glow bg-glow--3"></div>
+
+  <header class="header" id="app-header">
+    <div class="header__brand">
+      <span class="header__icon">✋</span>
+      <h1 class="header__title">Magical Hands</h1>
+    </div>
+    <p class="header__subtitle">MediaPipe Gesture Recognizer · 21 Key Points</p>
+  </header>
+
+  <main class="main" id="app-main">
+    <!-- Start Screen -->
+    <section class="start-screen" id="start-screen">
+      <div class="start-screen__card">
+        <div class="start-screen__icon-wrap">
+          <span class="start-screen__icon">🖐️</span>
+        </div>
+        <h2 class="start-screen__heading">Hand Recognition</h2>
+        <p class="start-screen__desc">
+          Detect hands in real time, visualise 21 anatomical key points, and recognise gestures — all in your browser.
+        </p>
+        <button class="btn btn--primary" id="btn-start">
+          <span class="btn__glow"></span>
+          <span class="btn__text">Start Camera</span>
+        </button>
+        <p class="start-screen__note">Camera access is required. No data leaves your device.</p>
+      </div>
+    </section>
+
+    <!-- Camera + Canvas -->
+    <section class="camera-section hidden" id="camera-section">
+      <div class="camera-wrap" id="camera-wrap">
+        <video id="webcam" autoplay playsinline></video>
+        <canvas id="overlay"></canvas>
+        <!-- FPS badge -->
+        <div class="badge badge--fps" id="fps-badge">-- FPS</div>
+        <!-- Hands count badge -->
+        <div class="badge badge--hands" id="hands-badge">0 hands</div>
+      </div>
+
+      <!-- Sidebar panels -->
+      <aside class="sidebar" id="sidebar">
+        <!-- Gesture panel -->
+        <div class="panel" id="gesture-panel">
+          <h3 class="panel__title">🤟 Gestures</h3>
+          <div class="panel__body" id="gesture-list">
+            <p class="panel__empty">Show your hand…</p>
+          </div>
+        </div>
+
+        <!-- Landmarks panel -->
+        <div class="panel" id="landmark-panel">
+          <h3 class="panel__title">📍 Landmarks</h3>
+          <div class="panel__body panel__body--scroll" id="landmark-list">
+            <p class="panel__empty">No data yet</p>
+          </div>
+        </div>
+
+        <!-- Controls panel -->
+        <div class="panel" id="controls-panel">
+          <h3 class="panel__title">⚙️ Controls</h3>
+          <div class="panel__body">
+            <label class="control-row" for="max-hands">
+              <span>Max hands</span>
+              <select id="max-hands" class="select">
+                <option value="1">1</option>
+                <option value="2" selected>2</option>
+                <option value="4">4</option>
+              </select>
+            </label>
+            <label class="control-row" for="confidence">
+              <span>Min confidence</span>
+              <input type="range" id="confidence" class="range" min="0.1" max="1" step="0.05" value="0.5" />
+              <span class="range-val" id="confidence-val">0.50</span>
+            </label>
+            <label class="control-row" for="toggle-skeleton">
+              <span>Skeleton</span>
+              <input type="checkbox" id="toggle-skeleton" class="toggle" checked />
+            </label>
+            <label class="control-row" for="toggle-glow">
+              <span>Glow effect</span>
+              <input type="checkbox" id="toggle-glow" class="toggle" checked />
+            </label>
+            <label class="control-row" for="toggle-labels">
+              <span>Point labels</span>
+              <input type="checkbox" id="toggle-labels" class="toggle" />
+            </label>
+            <button class="btn btn--small btn--danger" id="btn-stop">Stop Camera</button>
+          </div>
+        </div>
+      </aside>
+    </section>
+  </main>
+
+  <!-- Loading overlay -->
+  <div class="loading-overlay hidden" id="loading-overlay">
+    <div class="loading-spinner"></div>
+    <p class="loading-text" id="loading-text">Loading MediaPipe…</p>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
